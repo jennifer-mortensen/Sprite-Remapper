@@ -4,5 +4,5 @@
   "tile_width": 16,
   "tile_height": 16,
   "palette": "bmf_final_3",
-  "color_space": "rgb"
+  "color_space": "lab"
 }
