@@ -2,7 +2,7 @@ import os
 
 OUTPUT_FILE = "project_dump.txt"
 
-# Extensions you want to include
+# Extensions to include
 INCLUDE_EXTENSIONS = {".py", ".json", ".txt", ".md", ".yaml", ".yml"}
 
 # Folders to skip

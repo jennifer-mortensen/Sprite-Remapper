@@ -10,7 +10,6 @@ import sys
 # ==============================
 # PATH HELPERS
 # ==============================
-
 def get_base_dir() -> Path:
     """
     Return the application's root directory.
@@ -46,7 +45,6 @@ def normalize_filename(filename: str, extension: str) -> Path:
 # ==============================
 # PATHS CONSTANTS
 # ==============================
-
 # Directories
 PROJECT_ROOT = get_base_dir()
 FILE_DIR_PALETTES = PROJECT_ROOT / "palettes"

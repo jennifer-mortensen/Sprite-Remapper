@@ -18,7 +18,6 @@ logger = logging.getLogger(__name__)
 # ==============================
 # MAIN ENTRY POINT
 # ==============================
-
 def main() -> None:
     """
     Run the sprite remapping application.
@@ -62,7 +61,6 @@ def main() -> None:
 # ==============================
 # HIGH LEVEL FUNCTIONS
 # ==============================
-
 def configure_logging() -> None:
     """
     Configure logging for both CLI and file output.
