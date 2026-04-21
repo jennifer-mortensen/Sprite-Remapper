@@ -49,6 +49,15 @@ def main() -> None:
             palette=palette,
             color_space=config.color_space
         )
+        logger.info("Output complete.")
+    except FileNotFoundError as e:
+        logger.exception("File not found")
+        print(f"ERROR: Missing file: {e.filename}")
+        sys.exit(1)
+    except json.JSONDecodeError:
+        logger.exception("Invalid JSON")
+        print("ERROR: Config or palette file is invalid JSON.")
+        sys.exit(1)
     except Exception:
         logger.exception("Unexpected error")
         # Separate CLI-level output. Full exception is logged externally just above.

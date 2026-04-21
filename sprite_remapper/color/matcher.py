@@ -1,55 +1,107 @@
+"""
+Color matching utilities for sprite_remapper.
+
+Provides functionality for mapping arbitrary RGB colors to the nearest
+color in a palette, supporting multiple color spaces (e.g. RGB, LAB).
+Includes helpers for preparing palette data for matching.
+"""
+from enum import Enum
 from typing import Any
 from .distance import rgb_distance, lab_distance
 from .lab import rgb_to_lab
 
-
+# ==============================
+# TYPE DEFINITIONS
+# ==============================
 Color = tuple[int, int, int]
 
+class ColorSpace(str, Enum):
+    RGB = "rgb"
+    LAB = "lab"
 
+# ==============================
+# CLASSES
+# ==============================
 class NearestColorMatcher:
+    """
+    Find the nearest color in a palette using a chosen color space.
+
+    Supports matching in RGB or LAB space. When using LAB, palette colors
+    are preconverted to improve performance during repeated comparisons.
+    """    
     def __init__(
         self,
         palette_colors: list[Color],
-        color_space: str = "rgb"
+        color_space: str| ColorSpace
     ) -> None:
-        self.color_space: str = color_space
+        """
+        Initialize the matcher with a palette and color space.
 
-        if color_space == "lab":
-            self.palette: list[Color] = [rgb_to_lab(c) for c in palette_colors]
-            self.original_palette: list[Color] = palette_colors
+        Args:
+            palette_colors: List of RGB colors defining the palette.
+            color_space: The color space to use for matching ("rgb" or "lab").
+        """        
+        try:
+            color_space = ColorSpace(color_space.lower())           
+        except ValueError:
+            valid = ", ".join(cs.value for cs in ColorSpace)
+            raise ValueError(f"Unsupported color space '{color_space}'. Valid: {valid}")
+        
+        if color_space == ColorSpace.LAB:
+            self.convert = rgb_to_lab
+            self.distance = lab_distance
+        elif color_space == ColorSpace.RGB:
+            self.convert = lambda c: c # Default color space. No conversion needed.
+            self.distance = rgb_distance
         else:
-            self.palette = palette_colors
-            self.original_palette = palette_colors  # keep consistent
+            raise RuntimeError(f"Unhandled color space: {color_space}")                     
+
+        self.palette = [self.convert(c) for c in palette_colors] # Converted palette (e.g. LAB)
+        self.original_palette = palette_colors # RGB palette from JSON
 
 
     def match(self, color: Color) -> Color:
-        if self.color_space == "lab":
-            color_converted = rgb_to_lab(color)
-            distance_fn = lab_distance
-        else:
-            color_converted = color
-            distance_fn = rgb_distance
+        """
+        Find the nearest palette color to the given input color.
 
-        best_color: Color | None = None
-        best_dist: float = float("inf")
+        Converts the input color to the configured color space (if needed),
+        computes distances to all palette colors, and returns the closest match.
 
-        for i, p in enumerate(self.palette):
-            dist: float = distance_fn(color_converted, p)
+        Args:
+            color: The input RGB color to match.
+
+        Returns:
+            The nearest matching RGB color from the palette.
+        """        
+        color_converted = self.convert(color)
+
+        best_index = None
+        best_dist = float("inf")
+
+        for index, palette_color in enumerate(self.palette):
+            dist = self.distance(color_converted, palette_color)
 
             if dist < best_dist:
                 best_dist = dist
-                best_color = (
-                    self.original_palette[i]
-                    if self.color_space == "lab"
-                    else p
-                )
+                best_index = index
+        if best_index is None:
+            raise RuntimeError("No palette match found")           
 
-        # At least one color should exist, but keep type checker happy
-        assert best_color is not None
-        return best_color
+        return self.original_palette[best_index]
 
-
+# ==============================
+# HIGH LEVEL FUNCTIONS
+# ==============================
 def flatten_palette(palette: dict[str, Any]) -> list[Color]:
+    """
+    Extract all colors from a palette definition into a flat list.
+
+    Args:
+        palette: Palette data containing ramps of colors.
+
+    Returns:
+        A list of RGB colors as tuples.
+    """    
     colors: list[Color] = []
 
     for ramp in palette["ramps"]:
@@ -58,6 +110,16 @@ def flatten_palette(palette: dict[str, Any]) -> list[Color]:
 
     return colors
 
-def get_matcher(palette: dict[str, Any],color_space: str) -> NearestColorMatcher:
+def get_matcher(palette: dict[str, Any], color_space: str | ColorSpace) -> NearestColorMatcher:
+    """
+    Create a color matcher from palette data and configuration.
+
+    Args:
+        palette: Palette data containing color ramps.
+        color_space: The color space to use for matching.
+
+    Returns:
+        An initialized NearestColorMatcher instance.
+    """    
     colors = flatten_palette(palette)
     return NearestColorMatcher(colors, color_space)

@@ -1,4 +1,11 @@
 ================================================================================
+FILE: project_dump.txt
+================================================================================
+
+
+
+
+================================================================================
 FILE: run.py
 ================================================================================
 
@@ -19,11 +26,20 @@ FILE: sprite_remapper\__init__.py
 FILE: sprite_remapper\bundle_project.py
 ================================================================================
 
+"""
+Utility script for exporting the project source into a single text file.
+
+Traverses the project directory, filters files by extension, and writes
+their contents into a consolidated output file for sharing or inspection.
+"""
 import os
 
+# ==============================
+# CONFIG CONSTANTS
+# ==============================
 OUTPUT_FILE = "project_dump.txt"
 
-# Extensions you want to include
+# Extensions to include
 INCLUDE_EXTENSIONS = {".py", ".json", ".txt", ".md", ".yaml", ".yml"}
 
 # Folders to skip
@@ -37,10 +53,32 @@ EXCLUDE_DIRS = {
     "build"
 }
 
+# ==============================
+# FUNCTIONS
+# ==============================
 def should_include_file(filename: str) -> bool:
+    """
+    Determine whether a file should be included based on its extension.
+
+    Args:
+        filename: The name of the file to evaluate.
+
+    Returns:
+        True if the file's extension is allowed, otherwise False.
+    """    
     return os.path.splitext(filename)[1].lower() in INCLUDE_EXTENSIONS
 
 def collect_files(root_dir: str) -> list[str]:
+    """
+    Recursively collect all files under the given directory that match
+    the allowed extensions, excluding specified folders.
+
+    Args:
+        root_dir: The root directory to search.
+
+    Returns:
+        A sorted list of file paths to include.
+    """    
     files: list[str] = []
     for dirpath, dirnames, filenames in os.walk(root_dir):
         # Modify dirnames in-place to skip excluded dirs
@@ -54,21 +92,34 @@ def collect_files(root_dir: str) -> list[str]:
     return sorted(files)
 
 def write_output(files: list[str], root_dir: str) -> None:
-    with open(OUTPUT_FILE, "w", encoding="utf-8") as out:
-        for path in files:
-            rel_path = os.path.relpath(path, root_dir)
+    """
+    Write the contents of collected files into a single output file.
 
-            out.write("=" * 80 + "\n")
-            out.write(f"FILE: {rel_path}\n")
-            out.write("=" * 80 + "\n\n")
+    Each file is prefixed with its relative path for clarity. Files that
+    cannot be read are noted in the output.
 
-            try:
-                with open(path, "r", encoding="utf-8") as f:
-                    out.write(f.read())
-            except OSError as e:
-                out.write(f"[ERROR READING FILE: {e}]")
+    Args:
+        files: The list of file paths to include.
+        root_dir: The root directory used to compute relative paths.
+    """
+    try:        
+        with open(OUTPUT_FILE, "w", encoding="utf-8") as out:
+            for path in files:
+                rel_path = os.path.relpath(path, root_dir)
 
-            out.write("\n\n\n")
+                out.write("=" * 80 + "\n")
+                out.write(f"FILE: {rel_path}\n")
+                out.write("=" * 80 + "\n\n")
+
+                try:
+                    with open(path, "r", encoding="utf-8") as f:
+                        out.write(f.read())
+                except OSError as e:
+                    out.write(f"[ERROR READING FILE: {e}]")
+
+                out.write("\n\n\n")
+    except OSError as e:
+        print(f"ERROR: Could not write output file '{OUTPUT_FILE}': {e}")                    
 
 if __name__ == "__main__":
     root = os.getcwd()
@@ -89,35 +140,96 @@ FILE: sprite_remapper\color\# __init__.py
 FILE: sprite_remapper\color\distance.py
 ================================================================================
 
-RGB = tuple[int, int, int]
+"""
+Color distance helpers for comparing colors in different color spaces.
+
+Provides squared-distance calculations for RGB and LAB values used
+during nearest-color palette matching.
+"""
+
+# ==============================
+# TYPE ALIASES
+# ==============================
 LAB = tuple[float, float, float]
+RGB = tuple[int, int, int]
+
+# ==============================
+# DISTANCE FUNCTIONS
+# ==============================
+def lab_distance(c1: LAB, c2: LAB) -> float:
+    """
+    Return the squared Euclidean distance between two LAB colors.
+
+    Args:
+        c1: The first LAB color.
+        c2: The second LAB color.
+
+    Returns:
+        The squared component distance between the two colors.
+    """
+    return ((c1[0] - c2[0]) ** 2 + (c1[1] - c2[1]) ** 2 + (c1[2] - c2[2]) ** 2)
 
 def rgb_distance(c1: RGB, c2: RGB) -> float:
-    return (
-        (c1[0] - c2[0]) ** 2 +
-        (c1[1] - c2[1]) ** 2 +
-        (c1[2] - c2[2]) ** 2
-    )
+    """
+    Return the squared Euclidean distance between two RGB colors.
 
-def lab_distance(c1: LAB, c2: LAB) -> float:
-    return (
-        (c1[0] - c2[0]) ** 2 +
-        (c1[1] - c2[1]) ** 2 +
-        (c1[2] - c2[2]) ** 2
-    )
+    Args:
+        c1: The first RGB color.
+        c2: The second RGB color.
+
+    Returns:
+        The squared channel distance between the two colors.
+    """    
+    return ((c1[0] - c2[0]) ** 2 + (c1[1] - c2[1]) ** 2 + (c1[2] - c2[2]) ** 2)
 
 
 ================================================================================
 FILE: sprite_remapper\color\lab.py
 ================================================================================
 
-import math
+"""
+Color space conversion helpers for sprite_remapper.
 
+Provides utilities for converting RGB colors into CIE XYZ and CIE LAB
+representations for perceptual color-distance matching.
+"""
+# ==============================
+# TYPE ALIASES
+# ==============================
 RGB = tuple[int, int, int]
 XYZ = tuple[float, float, float]
 LAB = tuple[float, float, float]
 
+# ==============================
+# COLOR CONVERSION FUNCTIONS
+# ==============================
+def rgb_to_lab(rgb: RGB) -> LAB:
+    """
+    Convert an RGB color value directly to CIE LAB.
+
+    Internally converts RGB to XYZ first, then XYZ to LAB.
+
+    Args:
+        rgb: The RGB color as a three-channel tuple.
+
+    Returns:
+        The converted LAB color as a tuple of floats.
+    """    
+    x, y, z = rgb_to_xyz(*rgb)
+    return xyz_to_lab(x, y, z)
+
 def rgb_to_xyz(r: int, g: int, b: int) -> XYZ:
+    """
+    Convert an RGB color value to CIE XYZ.
+
+    Args:
+        r: Red channel value (0-255).
+        g: Green channel value (0-255).
+        b: Blue channel value (0-255).
+
+    Returns:
+        The converted XYZ color as a tuple of floats.
+    """    
     r = r / 255
     g = g / 255
     b = b / 255
@@ -136,6 +248,17 @@ def rgb_to_xyz(r: int, g: int, b: int) -> XYZ:
     return x, y, z
 
 def xyz_to_lab(x: float, y: float, z: float) -> LAB:
+    """
+    Convert a CIE XYZ color value to CIE LAB.
+
+    Args:
+        x: X component of the XYZ color.
+        y: Y component of the XYZ color.
+        z: Z component of the XYZ color.
+
+    Returns:
+        The converted LAB color as a tuple of floats.
+    """    
     # D65 reference white
     xr = x / 0.95047
     yr = y / 1.00000
@@ -154,67 +277,115 @@ def xyz_to_lab(x: float, y: float, z: float) -> LAB:
 
     return l, a, b
 
-def rgb_to_lab(rgb: RGB) -> LAB:
-    x, y, z = rgb_to_xyz(*rgb)
-    return xyz_to_lab(x, y, z)
-
 
 ================================================================================
 FILE: sprite_remapper\color\matcher.py
 ================================================================================
 
+"""
+Color matching utilities for sprite_remapper.
+
+Provides functionality for mapping arbitrary RGB colors to the nearest
+color in a palette, supporting multiple color spaces (e.g. RGB, LAB).
+Includes helpers for preparing palette data for matching.
+"""
+from enum import Enum
 from typing import Any
 from .distance import rgb_distance, lab_distance
 from .lab import rgb_to_lab
 
-
+# ==============================
+# TYPE DEFINITIONS
+# ==============================
 Color = tuple[int, int, int]
 
+class ColorSpace(str, Enum):
+    RGB = "rgb"
+    LAB = "lab"
 
+# ==============================
+# CLASSES
+# ==============================
 class NearestColorMatcher:
+    """
+    Find the nearest color in a palette using a chosen color space.
+
+    Supports matching in RGB or LAB space. When using LAB, palette colors
+    are preconverted to improve performance during repeated comparisons.
+    """    
     def __init__(
         self,
         palette_colors: list[Color],
-        color_space: str = "rgb"
+        color_space: ColorSpace
     ) -> None:
-        self.color_space: str = color_space
+        """
+        Initialize the matcher with a palette and color space.
 
-        if color_space == "lab":
-            self.palette: list[Color] = [rgb_to_lab(c) for c in palette_colors]
-            self.original_palette: list[Color] = palette_colors
+        Args:
+            palette_colors: List of RGB colors defining the palette.
+            color_space: The color space to use for matching ("rgb" or "lab").
+        """        
+        try:
+            color_space = ColorSpace(color_space.lower())           
+        except ValueError:
+            valid = ", ".join(cs.value for cs in ColorSpace)
+            raise ValueError(f"Unsupported color space '{color_space}'. Valid: {valid}")
+        
+        if color_space == ColorSpace.LAB:
+            self.convert = rgb_to_lab
+            self.distance = lab_distance
+        elif color_space == ColorSpace.RGB:
+            self.convert = lambda c: c # Default color space. No conversion needed.
+            self.distance = rgb_distance
         else:
-            self.palette = palette_colors
-            self.original_palette = palette_colors  # keep consistent
+            raise RuntimeError(f"Unhandled color space: {color_space}")                     
+
+        self.palette = [self.convert(c) for c in palette_colors] # Converted palette (e.g. LAB)
+        self.original_palette = palette_colors # RGB palette from JSON
 
 
     def match(self, color: Color) -> Color:
-        if self.color_space == "lab":
-            color_converted = rgb_to_lab(color)
-            distance_fn = lab_distance
-        else:
-            color_converted = color
-            distance_fn = rgb_distance
+        """
+        Find the nearest palette color to the given input color.
 
-        best_color: Color | None = None
-        best_dist: float = float("inf")
+        Converts the input color to the configured color space (if needed),
+        computes distances to all palette colors, and returns the closest match.
 
-        for i, p in enumerate(self.palette):
-            dist: float = distance_fn(color_converted, p)
+        Args:
+            color: The input RGB color to match.
+
+        Returns:
+            The nearest matching RGB color from the palette.
+        """        
+        color_converted = self.convert(color)
+
+        best_index = None
+        best_dist = float("inf")
+
+        for index, palette_color in enumerate(self.palette):
+            dist = self.distance(color_converted, palette_color)
 
             if dist < best_dist:
                 best_dist = dist
-                best_color = (
-                    self.original_palette[i]
-                    if self.color_space == "lab"
-                    else p
-                )
+                best_index = index
+        if best_index is None:
+            raise RuntimeError("No palette match found")           
 
-        # At least one color should exist, but keep type checker happy
-        assert best_color is not None
-        return best_color
+        return self.original_palette[best_index]
 
-
+# ==============================
+# HIGH LEVEL FUNCTIONS
+# ==============================
 def flatten_palette(palette: dict[str, Any]) -> list[Color]:
+    """
+    Extract all colors from a palette definition into a flat list.
+
+    Args:
+        palette: Palette data containing ramps of colors.
+
+    Returns:
+        A list of RGB colors as tuples.
+    """    
     colors: list[Color] = []
 
     for ramp in palette["ramps"]:
@@ -223,7 +394,17 @@ def flatten_palette(palette: dict[str, Any]) -> list[Color]:
 
     return colors
 
-def get_matcher(palette: dict[str, Any],color_space: str) -> NearestColorMatcher:
+def get_matcher(palette: dict[str, Any], color_space: str | ColorSpace) -> NearestColorMatcher:
+    """
+    Create a color matcher from palette data and configuration.
+
+    Args:
+        palette: Palette data containing color ramps.
+        color_space: The color space to use for matching.
+
+    Returns:
+        An initialized NearestColorMatcher instance.
+    """    
     colors = flatten_palette(palette)
     return NearestColorMatcher(colors, color_space)
 
@@ -247,10 +428,22 @@ FILE: sprite_remapper\config.json
 FILE: sprite_remapper\config\loader.py
 ================================================================================
 
+"""
+Configuration loading utilities for sprite_remapper.
+
+Provides functionality for reading, validating, and converting external
+configuration files into structured application data.
+"""
+import logging
 import json
 from pathlib import Path
 from dataclasses import dataclass
 
+logger = logging.getLogger(__name__)
+
+# ==============================
+# DATA CLASSES
+# ==============================
 @dataclass
 class Config:
     palette: str
@@ -260,7 +453,27 @@ class Config:
     tile_height: int
     color_space: str = "rgb"
 
+# ==============================
+# HIGH LEVEL FUNCTIONS
+# ==============================
 def load_config(path: Path) -> Config:
+    """
+    Load and parse a configuration file into a Config object.
+
+    Reads JSON data from the given path, filters out unknown keys,
+    and constructs a Config instance using the recognized fields.
+
+    Args:
+        path: The path to the configuration file.
+
+    Returns:
+        A populated Config object.
+
+    Raises:
+        FileNotFoundError: If the configuration file does not exist.
+        json.JSONDecodeError: If the file contains invalid JSON.
+        TypeError: If required fields are missing or have invalid types.
+    """    
     with open(path, "r", encoding="utf-8") as f:
         data = json.load(f)
 
@@ -268,11 +481,34 @@ def load_config(path: Path) -> Config:
 
     unknown_keys = set(data) - set(allowed_keys)
     if unknown_keys:
-        print(f"[WARNING] Unknown config keys: {unknown_keys}")
+        logger.warning(f"Unknown config keys: {unknown_keys}")
 
-    filtered = {k: v for k, v in data.items() if k in allowed_keys}
+    filtered = {key: value for key, value in data.items() if key in allowed_keys}
 
     return Config(**filtered)
+
+
+================================================================================
+FILE: sprite_remapper\const.py
+================================================================================
+
+"""
+Shared application constants for sprite_remapper.
+
+Defines reusable static values such as encodings, logging settings,
+default modes, and other configuration values used across modules.
+"""
+# ==============================
+# FILE ENCODING
+# ==============================
+DEFAULT_ENCODING = "utf-8"
+
+# ==============================
+# LOGGER CONSTANTS
+# ==============================
+LOGGER_FORMAT_CLI = "%(levelname)s: %(message)s"
+LOGGER_FORMAT_FILE = "%(asctime)s | %(levelname)s | %(name)s | %(message)s"
+LOGGER_FILE_MODE = "w" # "w" = overwrite each run
 
 
 ================================================================================
@@ -286,42 +522,102 @@ FILE: sprite_remapper\core\# __init__.py
 FILE: sprite_remapper\core\image_io.py
 ================================================================================
 
+"""
+Image loading and saving helpers for sprite_remapper.
+
+Provides standardized file I/O wrappers for opening source images
+and writing processed output images with the expected formats.
+"""
 from pathlib import Path
 from PIL import Image
 
+# ==============================
+# I/O CONSTANTS
+# ==============================
+IMAGE_MODE_DEFAULT = "RGBA"
+IMAGE_FORMAT_DEFAULT = "PNG"
+
+# ==============================
+# I/O FUNCTIONS
+# ==============================
 def load_image(path: str | Path) -> Image.Image:
-    return Image.open(path).convert("RGBA")
+    """
+    Load an image file and convert it to the default working mode.
+
+    Args:
+        path: The path to the image file.
+
+    Returns:
+        The loaded image as a Pillow Image object.
+    """    
+    return Image.open(path).convert(IMAGE_MODE_DEFAULT)
 
 def save_image(image: Image.Image, path: str | Path) -> None:
-    image.save(path, "PNG")
+    """
+    Save an image to disk using the default output format.
+
+    Args:
+        image: The Pillow Image to save.
+        path: The destination file path.
+    """    
+    image.save(path, IMAGE_FORMAT_DEFAULT)
 
 
 ================================================================================
 FILE: sprite_remapper\core\pipeline.py
 ================================================================================
 
+"""
+Core image processing pipeline for sprite_remapper.
+
+Coordinates the full remapping workflow: loading an image, slicing it
+into tiles, applying palette-based color matching, and assembling the
+final output image.
+"""
 from pathlib import Path
 from typing import Any, Protocol
 from PIL import Image
 from .image_io import load_image, save_image
 from .tile import slice_tiles, assemble_tiles
 from sprite_remapper.color.matcher import get_matcher
+import logging
 
+logger = logging.getLogger(__name__)
 
+# ==============================
+# INTERFACES
+# ==============================
 class ColorMatcher(Protocol):
     def match(self, color: tuple[int, int, int]) -> tuple[int, int, int]: ...
 
-
+# ==============================
+# HIGH LEVEL FUNCTIONS
+# ==============================
 def run_pipeline(input_path: str | Path, output_path: str | Path, tile_width: int, tile_height: int, palette: dict[str, Any], color_space: str) -> None:
+    """
+    Execute the sprite remapping pipeline.
+
+    Loads the input image, splits it into tiles, remaps each tile's colors
+    using the provided palette and color space, then reassembles and saves
+    the final image.
+
+    Args:
+        input_path: Path to the source image.
+        output_path: Path to write the processed image.
+        tile_width: Width of each tile in pixels.
+        tile_height: Height of each tile in pixels.
+        palette: Palette definition used for color matching.
+        color_space: Color space used for distance calculations.
+    """    
     image: Image.Image = load_image(input_path)
-
     tiles: list[Image.Image] = slice_tiles(image, tile_width, tile_height)
-
     matcher: ColorMatcher = get_matcher(palette, color_space)
-
     processed_tiles: list[Image.Image] = []
 
+    i = 0
     for tile in tiles:
+        i+= 1
+        logger.info(f"Processing tile {i}/{len(tiles)}")
         processed_tiles.append(process_tile(tile, matcher))
 
     result: Image.Image = assemble_tiles(
@@ -333,10 +629,21 @@ def run_pipeline(input_path: str | Path, output_path: str | Path, tile_width: in
 
     save_image(result, output_path)
 
-
 def process_tile(tile: Image.Image, matcher: ColorMatcher) -> Image.Image:
-    pixels = tile.load()
+    """
+    Apply palette-based color remapping to a single tile.
 
+    Iterates over each pixel, replacing its color with the nearest match
+    from the palette while preserving alpha transparency.
+
+    Args:
+        tile: The image tile to process.
+        matcher: Color matcher used to find nearest palette colors.
+
+    Returns:
+        The processed tile image.
+    """    
+    pixels = tile.load()
     width, height = tile.size
 
     for y in range(height):
@@ -356,12 +663,41 @@ def process_tile(tile: Image.Image, matcher: ColorMatcher) -> Image.Image:
 FILE: sprite_remapper\core\tile.py
 ================================================================================
 
+"""
+Tile slicing and assembly utilities for sprite_remapper.
+
+Provides helpers for breaking an image into fixed-size tiles and
+reconstructing an image from processed tiles.
+"""
 from PIL import Image
+import logging
+
+logger = logging.getLogger(__name__)
 
 def slice_tiles(image: Image.Image, tile_width: int, tile_height: int) -> list[Image.Image]:
+    """
+    Divide an image into tiles of the given dimensions.
+
+    Tiles are extracted left-to-right, top-to-bottom. Edge tiles will be
+    padded if the image dimensions are not evenly divisible by the tile size.
+
+    Args:
+        image: The source image to slice.
+        tile_width: Width of each tile in pixels.
+        tile_height: Height of each tile in pixels.
+
+    Returns:
+        A list of image tiles.
+    """    
     tiles: list[Image.Image] = []
 
     img_width, img_height = image.size
+    if img_width % tile_width != 0 or img_height % tile_height != 0:
+        logger.warning(
+            "Image size (%s, %s) is not evenly divisible by tile size (%s, %s). "
+            "Edge tiles will be padded.",
+            img_width, img_height, tile_width, tile_height
+    )    
 
     for y in range(0, img_height, tile_height):
         for x in range(0, img_width, tile_width):
@@ -372,6 +708,21 @@ def slice_tiles(image: Image.Image, tile_width: int, tile_height: int) -> list[I
     return tiles
 
 def assemble_tiles(tiles: list[Image.Image], image_size: tuple[int, int], tile_width: int, tile_height: int) -> Image.Image:
+    """
+    Reconstruct an image from a list of tiles.
+
+    Tiles are placed left-to-right, top-to-bottom to match the original
+    slicing order.
+
+    Args:
+        tiles: The list of processed image tiles.
+        image_size: The size of the final image as (width, height).
+        tile_width: Width of each tile in pixels.
+        tile_height: Height of each tile in pixels.
+
+    Returns:
+        The reconstructed image.
+    """    
     result = Image.new("RGBA", image_size)
 
     img_width, img_height = image_size
@@ -389,39 +740,111 @@ def assemble_tiles(tiles: list[Image.Image], image_size: tuple[int, int], tile_w
 FILE: sprite_remapper\main.py
 ================================================================================
 
-from pathlib import Path
-from sprite_remapper.core.pipeline import run_pipeline
+"""
+Application entry point for sprite_remapper.
+
+Handles startup concerns such as logging, configuration loading,
+resource path resolution, and launching the processing pipeline.
+"""
 from sprite_remapper.config.loader import load_config, Config
+from sprite_remapper import const
+from sprite_remapper.core.pipeline import run_pipeline
+from sprite_remapper.utils import paths
 from typing import Any
 import json
+import logging
+import sys
 
+logger = logging.getLogger(__name__)
+
+# ==============================
+# MAIN ENTRY POINT
+# ==============================
 def main() -> None:
-    base_dir = Path(__file__).resolve().parent
+    """
+    Run the sprite remapping application.
 
-    config_path = base_dir / "config.json"
-    config: Config = load_config(config_path)
+    Initializes logging, loads configuration data, resolves the
+    selected palette, and executes the image processing pipeline.
 
-    palette_path = base_dir / resolve_palette_path(config.palette)
+    If an unrecoverable error occurs, the exception is logged,
+    a user-friendly message is displayed, and the program exits
+    with a non-zero status code.
+    """    
+    configure_logging()
+    
+    try:
+        # Load config and prepare paths
+        config: Config = load_config(paths.FILE_PATH_CONFIG)        
+        palette_path = paths.FILE_DIR_PALETTES / paths.normalize_filename(config.palette, paths.FILE_EXTENSION_PALETTE)
 
-    with open(palette_path, "r", encoding="utf-8") as f:
-        palette: dict[str, Any] = json.load(f)
+        # Open the palette file
+        with open(palette_path, "r", encoding=const.DEFAULT_ENCODING) as f:
+            palette: dict[str, Any] = json.load(f)
 
-    run_pipeline(
-        input_path=base_dir / config.input,
-        output_path=base_dir / config.output,
-        tile_width=config.tile_width,
-        tile_height=config.tile_height,
-        palette=palette,
-        color_space=config.color_space
+        # Process the sprite file
+        run_pipeline(
+            input_path=paths.PROJECT_ROOT / config.input,
+            output_path=paths.PROJECT_ROOT / config.output,
+            tile_width=config.tile_width,
+            tile_height=config.tile_height,
+            palette=palette,
+            color_space=config.color_space
+        )
+        logger.info("Output complete.")
+    except FileNotFoundError as e:
+        logger.exception("File not found")
+        print(f"ERROR: Missing file: {e.filename}")
+        sys.exit(1)
+    except json.JSONDecodeError:
+        logger.exception("Invalid JSON")
+        print("ERROR: Config or palette file is invalid JSON.")
+        sys.exit(1)
+    except Exception:
+        logger.exception("Unexpected error")
+        # Separate CLI-level output. Full exception is logged externally just above.
+        print(
+            f"ERROR: An unexpected error occurred. "
+            f"See the log file (default: {paths.FILE_PATH_LOG}) for details."
+        )
+        sys.exit(1)
+
+# ==============================
+# HIGH LEVEL FUNCTIONS
+# ==============================
+def configure_logging() -> None:
+    """
+    Configure logging for both CLI and file output.
+
+    CLI logging displays human-readable messages, while file logging
+    includes debug information and full exception tracebacks.
+    """    
+    formatter = logging.Formatter(const.LOGGER_FORMAT_FILE)
+
+    # CLI-level logging. Prioritize readability.
+    console = logging.StreamHandler()
+    console.setLevel(logging.INFO)
+    console.setFormatter(logging.Formatter(const.LOGGER_FORMAT_CLI))
+
+    # Filter out exception tracebacks from CLI
+    class NoExceptionTracebackFilter(logging.Filter):
+        def filter(self, record: logging.LogRecord) -> bool:
+            return record.exc_info is None
+
+    console.addFilter(NoExceptionTracebackFilter())
+
+    # File-level logging. Full fidelity.
+    file_handler = logging.FileHandler(
+        paths.FILE_PATH_LOG,
+        mode=const.LOGGER_FILE_MODE,
+        encoding=const.DEFAULT_ENCODING
     )
+    file_handler.setLevel(logging.DEBUG)
+    file_handler.setFormatter(formatter)
 
-def resolve_palette_path(name: str) -> Path:
-    path = Path(name)
-
-    if path.suffix:
-        return path
-
-    return Path("palettes") / f"{name}.json"
+    root = logging.getLogger()
+    root.setLevel(logging.DEBUG)
+    root.handlers = [console, file_handler]
 
 if __name__ == "__main__":
     main()
@@ -595,5 +1018,68 @@ FILE: sprite_remapper\utils\# __init__.py
 ================================================================================
 
 
+
+
+================================================================================
+FILE: sprite_remapper\utils\paths.py
+================================================================================
+
+"""
+Path utilities and shared filesystem locations for sprite_remapper.
+
+Provides helpers for resolving application directories, normalizing
+filenames, and defining commonly used project file paths.
+"""
+from pathlib import Path
+import sys
+
+# ==============================
+# PATH HELPERS
+# ==============================
+def get_base_dir() -> Path:
+    """
+    Return the application's root directory.
+
+    When running as a packaged executable (such as PyInstaller),
+    this resolves to the executable's parent folder.
+
+    When running from source, this resolves to the project root
+    based on this module's location.
+
+    Returns:
+        The root directory as a Path object.
+    """
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).resolve().parent
+
+    return Path(__file__).resolve().parent.parent
+
+def normalize_filename(filename: str, extension: str) -> Path:
+    """
+    Ensure a filename includes the specified extension.
+
+    Args:
+        filename: The filename to normalize.
+        extension: The required file extension.
+
+    Returns:
+        A Path object with the correct extension.
+    """    
+    path = Path(filename)
+    return path if path.suffix else path.with_suffix(f".{extension}")
+
+# ==============================
+# PATHS CONSTANTS
+# ==============================
+# Directories
+PROJECT_ROOT = get_base_dir()
+FILE_DIR_PALETTES = PROJECT_ROOT / "palettes"
+
+# Files
+FILE_PATH_CONFIG = PROJECT_ROOT / normalize_filename("config", "json")
+FILE_PATH_LOG = PROJECT_ROOT / normalize_filename("sprite_remapper", "log")
+
+# File extensions
+FILE_EXTENSION_PALETTE = "json"
 
 

@@ -1,0 +1,5 @@
+sprite_remapper/input.png
+sprite_remapper/output.png
+sprite_remapper/*.log
+sprite_remapper/bundle_project.py
+project_dump.txt
